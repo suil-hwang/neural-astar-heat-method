@@ -8,7 +8,7 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from glob import glob
-from typing import Any
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -291,13 +291,20 @@ def _evaluate_single_model(
     opt_trajs: torch.Tensor,
     batch_vanilla_exp: np.ndarray | None,
     device: str,
+    phi: Optional[torch.Tensor] = None,
 ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """Evaluate a single model on one batch and return metrics."""
     if device == "cuda":
         torch.cuda.synchronize()
     start_t = time.time()
 
-    outputs = planner(map_designs, start_maps, goal_maps)
+    if phi is not None:
+        try:
+            outputs = planner(map_designs, start_maps, goal_maps, phi=phi)
+        except TypeError:
+            outputs = planner(map_designs, start_maps, goal_maps)
+    else:
+        outputs = planner(map_designs, start_maps, goal_maps)
 
     if device == "cuda":
         torch.cuda.synchronize()
@@ -324,10 +331,16 @@ def run_comparison(
 
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Evaluating Models"):
-            map_designs, start_maps, goal_maps, opt_trajs = batch
+            if len(batch) == 5:
+                map_designs, start_maps, goal_maps, opt_trajs, phi = batch
+            else:
+                map_designs, start_maps, goal_maps, opt_trajs = batch
+                phi = None
             map_designs = map_designs.to(device)
             start_maps = start_maps.to(device)
             goal_maps = goal_maps.to(device)
+            if phi is not None:
+                phi = phi.to(device)
             current_batch_size = map_designs.size(0)
 
             batch_vanilla_exp = None
@@ -341,6 +354,7 @@ def run_comparison(
                     opt_trajs,
                     batch_vanilla_exp,
                     device,
+                    phi=phi,
                 )
 
                 results[name].is_optimal.extend(is_opt)
@@ -447,6 +461,17 @@ def main() -> None:
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument("--batch-size", type=int, default=50)
+    parser.add_argument(
+        "--use-phi",
+        action="store_true",
+        help="Load phi embeddings for geodesic attention models",
+    )
+    parser.add_argument(
+        "--num-anchors",
+        type=int,
+        default=8,
+        help="Number of anchors for phi embedding",
+    )
     args = parser.parse_args()
 
     torch.set_float32_matmul_precision("high")
@@ -456,7 +481,13 @@ def main() -> None:
     # Load data
     logger.info(f"\nLoading dataset from {args.dataset}...")
     test_loader = create_dataloader(
-        args.dataset + ".npz", "test", batch_size=args.batch_size, shuffle=False
+        args.dataset + ".npz",
+        "test",
+        batch_size=args.batch_size,
+        shuffle=False,
+        geo_supervision=False,
+        use_phi=args.use_phi,
+        num_anchors=args.num_anchors,
     )
 
     # Initialize models

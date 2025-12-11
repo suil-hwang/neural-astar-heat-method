@@ -10,16 +10,29 @@ encoder:
   arch: "GeoAttentionCNN"
 #  depth: 2 # 32x32
   depth: 3 # 64x64
+  num_attention_blocks: 2
+  attention_heads: 4
+  num_anchors: 8
+  init_beta: 0.5
+  use_geodesic_pe: true
+  predict_vector_field: true
+  use_local_attention: false
+  local_window_size: 7
 
 params:
   batch_size: 16
   num_epochs: 100
   lr: 0.001
   num_workers: 4
+  num_anchors: 8
   geo_loss_weight: 0.1
   geo_temps: [0.5, 1.0, 2.0]
   geo_warmup_epochs: 5
   vec_loss_weight: 0.1
+  beta_warmup_epochs: 10
+  beta_unfreeze_epoch: 5
+  geo_loss_decay_epoch: 15
+  geo_loss_decay_factor: 0.5
 
 hydra:
   job:

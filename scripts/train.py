@@ -41,13 +41,17 @@ def main(config):
     if mode == "ours":
         encoder_input = "msg"
         geo_supervision = True
+        use_phi = True
     else:
         encoder_input = "m+"
         geo_supervision = False
+        use_phi = False
     
     # Get num_workers from config
     num_workers = getattr(config.params, 'num_workers', 4)
     
+    num_anchors = getattr(config.params, "num_anchors", getattr(config.encoder, "num_anchors", 8))
+
     train_loader = create_dataloader(
         config.dataset + ".npz",
         "train",
@@ -55,6 +59,8 @@ def main(config):
         shuffle=True,
         num_workers=num_workers,
         geo_supervision=geo_supervision,
+        use_phi=use_phi,
+        num_anchors=num_anchors,
     )
     val_loader = create_dataloader(
         config.dataset + ".npz",
@@ -63,6 +69,8 @@ def main(config):
         shuffle=False,
         num_workers=num_workers,
         geo_supervision=geo_supervision,
+        use_phi=use_phi,
+        num_anchors=num_anchors,
     )
 
     encoder_arch = config.encoder.arch
@@ -72,6 +80,24 @@ def main(config):
         )
     const_val = getattr(config, 'const', None)
     
+    encoder_kwargs = {}
+    encoder_kwargs["num_anchors"] = num_anchors
+    encoder_kwargs["attention_heads"] = getattr(config.encoder, "attention_heads", 4)
+    encoder_kwargs["num_attention_blocks"] = getattr(
+        config.encoder, "num_attention_blocks", 2
+    )
+    encoder_kwargs["init_beta"] = getattr(config.encoder, "init_beta", 0.5)
+    encoder_kwargs["use_geodesic_pe"] = getattr(config.encoder, "use_geodesic_pe", True)
+    encoder_kwargs["predict_vector_field"] = getattr(
+        config.encoder, "predict_vector_field", True
+    )
+    encoder_kwargs["use_local_attention"] = getattr(
+        config.encoder, "use_local_attention", False
+    )
+    encoder_kwargs["local_window_size"] = getattr(
+        config.encoder, "local_window_size", 7
+    )
+
     neural_astar = NeuralAstar(
         encoder_input=encoder_input,
         encoder_arch=encoder_arch,
@@ -79,6 +105,7 @@ def main(config):
         learn_obstacles=False,
         const=const_val,
         Tmax=config.Tmax,
+        encoder_kwargs=encoder_kwargs if mode == "ours" else None,
     )
     
     checkpoint_callback = ModelCheckpoint(
@@ -100,6 +127,8 @@ def main(config):
         config,
         use_guidance=False,
         geo_supervision=geo_supervision,
+        use_phi=use_phi,
+        num_anchors=num_anchors,
     )
     logdir = f"{config.logdir}/{mode}/{os.path.basename(config.dataset)}"
     trainer = pl.Trainer(

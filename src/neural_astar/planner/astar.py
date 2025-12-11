@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import partial
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -82,6 +83,8 @@ class NeuralAstar(VanillaAstar):
         learn_obstacles: bool = False,
         const: float = None,
         use_differentiable_astar: bool = True,
+        encoder_kwargs: Optional[dict] = None,
+        encoder_instance: Optional[nn.Module] = None,
     ):
         """
         Neural A* search.
@@ -98,14 +101,18 @@ class NeuralAstar(VanillaAstar):
         )
         self.encoder_input = encoder_input
         self.encoder_arch = encoder_arch
-        
-        # Create encoder
-        encoder_arch_cls = getattr(encoder, encoder_arch)
-        self.encoder = encoder_arch_cls(
-            len(self.encoder_input), 
-            encoder_depth, 
-            const
-        )
+        encoder_kwargs = encoder_kwargs or {}
+
+        if encoder_instance is not None:
+            self.encoder = encoder_instance
+        else:
+            encoder_arch_cls = getattr(encoder, encoder_arch)
+            self.encoder = encoder_arch_cls(
+                len(self.encoder_input),
+                encoder_depth,
+                const,
+                **encoder_kwargs,
+            )
         self._last_vector_field = None
         
         self.learn_obstacles = learn_obstacles
@@ -119,6 +126,8 @@ class NeuralAstar(VanillaAstar):
         map_designs: torch.tensor,
         start_maps: torch.tensor,
         goal_maps: torch.tensor,
+        phi: Optional[torch.Tensor] = None,
+        spatial_mask: Optional[torch.Tensor] = None,
     ) -> torch.tensor:
         """
         Encode input to cost map.
@@ -127,8 +136,6 @@ class NeuralAstar(VanillaAstar):
         - map_designs is pre-concatenated [map, start, goal, vx, vy, dist, reachable]
         - Encoder internally splits into Base(3ch) / Heat(4ch)
         """
-        n_channels = len(self.encoder_input)
-
         if "+" in self.encoder_input:
             # mode=neural_astar: map + (start + goal)
             inputs = map_designs
@@ -147,7 +154,13 @@ class NeuralAstar(VanillaAstar):
         else:
             inputs = map_designs
 
-        encoded = self.encoder(inputs)
+        if phi is not None or spatial_mask is not None:
+            try:
+                encoded = self.encoder(inputs, phi=phi, spatial_mask=spatial_mask)
+            except TypeError:
+                encoded = self.encoder(inputs)
+        else:
+            encoded = self.encoder(inputs)
         self._last_vector_field = None
 
         if isinstance(encoded, dict):
@@ -180,12 +193,15 @@ class NeuralAstar(VanillaAstar):
         start_maps: torch.tensor,
         goal_maps: torch.tensor,
         store_intermediate_results: bool = False,
+        phi: Optional[torch.Tensor] = None,
+        spatial_mask: Optional[torch.Tensor] = None,
     ) -> AstarOutput:
         """Perform neural A* search."""
-        cost_maps = self.encode(map_designs, start_maps, goal_maps)
+        cost_maps = self.encode(
+            map_designs, start_maps, goal_maps, phi=phi, spatial_mask=spatial_mask
+        )
         
         # Extract obstacle map
-        n_channels = len(self.encoder_input)
         if not self.learn_obstacles:
             obstacles_maps = map_designs[:, :1]
         else:
