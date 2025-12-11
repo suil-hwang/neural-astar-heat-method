@@ -1,8 +1,4 @@
-"""
-Cost Map 시각화 (Geo-Attention, 3채널 입력)
-- 모델이 학습한 cost map을 시각화
-- Geodesic distance teacher(dist/reachable)와 비교
-"""
+# scripts/visualize_cost_map.py
 import os
 import argparse
 import numpy as np
@@ -21,15 +17,7 @@ def visualize_cost_maps(
     save_dir: str = "cost_map_vis",
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
 ) -> None:
-    """
-    Cost map 시각화 (Geo-Attention, 3채널 입력)
-
-    Args:
-        dataset_path: npz 파일 경로 (.npz 제외)
-        model_path: 학습된 모델 체크포인트 디렉토리
-        sample_indices: 시각화할 샘플 인덱스 리스트
-        save_dir: 저장 디렉토리
-    """
+    """Visualize cost maps (Geo-Attention, 3-channel input)"""
     os.makedirs(save_dir, exist_ok=True)
 
     print(f"Loading dataset: {dataset_path}.npz")
