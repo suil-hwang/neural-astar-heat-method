@@ -1,0 +1,26 @@
+seed: 1234
+#dataset: "data/maze_preprocessed/mazes_032_moore_c8_ours"
+dataset: "data/maze_preprocessed/mixed_064_moore_c16_ours"
+logdir: "model"
+Tmax: 0.25
+mode: "ours" # Options: vanilla, neural_astar, ours
+
+encoder:
+  input: "msg"
+  arch: "GeoAttentionCNN"
+#  depth: 2 # 32x32
+  depth: 3 # 64x64
+
+params:
+  batch_size: 16
+  num_epochs: 100
+  lr: 0.001
+  num_workers: 4
+  geo_loss_weight: 0.1
+  geo_temps: [0.5, 1.0, 2.0]
+  geo_warmup_epochs: 5
+  vec_loss_weight: 0.1
+
+hydra:
+  job:
+    chdir: False

@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[project]
+name = "neural_astar"
+requires-python = ">=3.8"
+dependencies = [
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "torchaudio==2.5.1",
+    "segmentation-models-pytorch==0.3.1",
+    "pqdict",
+    "hydra-core",
+    "numpy",
+    "tensorboard",
+    "moviepy",
+    "pytorch-lightning",
+    "jupyterlab",
+    "matplotlib",
+    "tensorboardx",
+    "tqdm",
+    "plyfile",
+    "scipy",
+    "pyyaml",
+    "potpourri3d",
+]
+version = "0.2.0"
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pysen",
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+]
+
+[tool.pysen]
+version = "0.10.1"
+
+[tool.pysen.lint]
+enable_black = true
+enable_flake8 = true
+enable_isort = true
+enable_mypy = true
+py_version = "py38"
+
+[[tool.pysen.lint.mypy_targets]]
+paths = ["."]

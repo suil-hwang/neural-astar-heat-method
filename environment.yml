@@ -1,0 +1,41 @@
+name: neural-astar
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.11.9
+  - pip=24.3.1
+
+  - pytorch=2.5.1
+  - torchvision=0.20.1
+  - torchaudio=2.5.1
+  - pytorch-cuda=11.8
+
+  - numpy
+  - scipy
+
+  - pytorch-lightning
+  - tensorboard
+  - tensorboardx
+
+  - matplotlib
+  - tqdm
+  - plyfile
+  - jupyterlab
+
+  - hydra-core
+  - pyyaml
+
+  - pip:
+      - segmentation-models-pytorch
+      - pqdict
+      - moviepy # https://zulko.github.io/moviepy/reference/index.html
+      - potpourri3d # For heat method geodesic computations
+      - trimesh
+# conda env create -f environment.yml
+# conda activate neural-astar
+# pip install -e .
+# conda env remove -n neural-astar
