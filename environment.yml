@@ -9,15 +9,15 @@ dependencies:
   - python=3.11.9
   - pip=24.3.1
 
-  - pytorch=2.7.1 # https://docs.pytorch.org/docs/2.7/index.html
-  - torchvision=0.22.1
+  - pytorch==2.5.1 # https://docs.pytorch.org/docs/2.5/index.html
+  - torchvision=0.2.1
   - torchaudio=2.7.1
   - pytorch-cuda=11.8
 
   - numpy=2.3.0 # https://numpy.org/doc/stable/reference/index.html#reference
   - scipy=1.16.2 # https://docs.scipy.org/doc/scipy-1.16.2/reference/index.html
 
-  - pytorch-lightning=2.6.0 # https://lightning.ai/docs/pytorch/stable/
+  - pytorch-lightning=2.5.5 # https://lightning.ai/docs/pytorch/stable/
   - tensorboard
   - tensorboardx
 
