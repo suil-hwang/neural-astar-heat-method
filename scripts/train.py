@@ -34,20 +34,15 @@ def main(config):
     # Set random seed
     set_global_seeds(config.seed)
     
-    # Determine mode
-    # - neural_astar: vanilla Neural A* training (no geo supervision)
-    # - multi_head: multi-head geo-supervised training (recommended)
-    # - ours: backward-compatible alias for multi_head
+    # Determine mode (only two modes supported)
     mode = getattr(config, "mode", "neural_astar")
-    if mode not in ("neural_astar", "multi_head", "ours"):
+    if mode not in ("neural_astar", "ours"):
         raise ValueError(
-            f"Unsupported mode={mode!r}. Supported modes: neural_astar, multi_head, ours."
+            f"Unsupported mode={mode!r}. Supported modes: neural_astar, ours."
         )
 
     # Determine supervision mode
-    if mode == "ours":
-        print("Warning: mode=ours is deprecated; use mode=multi_head instead.")
-    geo_supervision = mode in ("multi_head", "ours")
+    geo_supervision = mode == "ours"
     encoder_input = "msg" if geo_supervision else config.encoder.input  # Default: "m+"
     
     # Get num_workers from config
@@ -71,16 +66,16 @@ def main(config):
     )
 
     encoder_arch = str(config.encoder.arch)
-    if geo_supervision and encoder_arch != "MultiHeadGeoUnet":
+    if geo_supervision and not encoder_arch.startswith("DirectGeo"):
         print(
-            f"Warning: mode={mode} but encoder.arch={encoder_arch!r}. "
-            "Recommended: MultiHeadGeoUnet for geo supervision."
+            f"Warning: mode=ours but encoder.arch={encoder_arch!r}. "
+            "Recommended: DirectGeoUnet or DirectGeoCNN"
         )
 
     # Optional encoder kwargs (e.g., backbone for Unet variants)
     encoder_kwargs = {}
     backbone = getattr(config.encoder, "backbone", None)
-    if backbone is not None and encoder_arch == "MultiHeadGeoUnet":
+    if backbone is not None and encoder_arch == "DirectGeoUnet":
         encoder_kwargs["backbone"] = backbone
     const_val = getattr(config, 'const', None)
     
@@ -107,7 +102,7 @@ def main(config):
     print(f"Encoder: {encoder_arch} (input channels: {len(encoder_input)})")
     print(f"Encoder depth: {encoder_depth}")
     
-    print(f"Geo Supervision: {geo_supervision}")
+    print(f"Direct Geo Supervision (ours): {geo_supervision}")
     
     print("=" * 60)
 
@@ -140,12 +135,10 @@ if __name__ == "__main__":
 # 1. Standard Neural A* 
 # python scripts/train.py mode=neural_astar encoder.arch=Unet 
 
-# 2. Multi-Head Geo Supervision (recommended)
-# python scripts/train.py mode=multi_head encoder.arch=MultiHeadGeoUnet
-
-# 3. Backward-compatible alias
-# python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet
+# 2. Ours (Geo-supervised)
+# python scripts/train.py mode=ours encoder.arch=DirectGeoUnet
 
 # Tensorboard
-# tensorboard --logdir model/multi_head/mazes_032_moore_c8_ours
-# tensorboard --logdir model/multi_head/mixed_064_moore_c16_ours
+# tensorboard --logdir model/ours/mazes_032_moore_c8_ours
+# tensorboard --logdir model/ours/all_064_moore_c16_ours
+# tensorboard --logdir model/ours/mixed_064_moore_c16_ours

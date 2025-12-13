@@ -45,7 +45,7 @@ torch.set_float32_matmul_precision("high")
 MODEL_DISPLAY_NAMES = {
     "vanilla": "A*",
     "neural_astar": "Neural A*",
-    "ours": "Ours (Multi-Head)",
+    "ours": "Ours",
 }
 DEFAULT_FPS = 15
 PAUSE_FRAMES = 15
@@ -364,13 +364,10 @@ def main(config) -> None:
     goal_map = goal_maps[problem_id : problem_id + 1]
 
     # Define models to compare
-    ours_dir = os.path.join(model_dir, "multi_head", dataname)
-    if not os.path.exists(ours_dir):
-        ours_dir = os.path.join(model_dir, "ours", dataname)
     models_config = {
         "vanilla": None,
         "neural_astar": os.path.join(model_dir, "neural_astar", dataname),
-        "ours": ours_dir,
+        "ours": os.path.join(model_dir, "ours", dataname),
     }
 
     # Process all models
@@ -440,8 +437,5 @@ if __name__ == "__main__":
 # Usage:
 # python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mazes_032_moore_c8_ours modeldir=model problem_id=0 resultdir=results 
 # python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mixed_064_moore_c16_ours modeldir=model problem_id=15 resultdir=results 
-#
-# Note:
-# - Time: Inference time in milliseconds (excluding visualization).
-# - Steps: Number of A* search iterations.
-# - Ours may have fewer steps but similar time due to Neural Network overhead.
+# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/all_064_moore_c16_ours modeldir=model problem_id=15 resultdir=results 
+

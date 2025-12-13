@@ -148,17 +148,10 @@ def load_all_models(
         models["Neural A*"] = na_model
 
     # Ours (Geo-supervised)
-    ours_candidates = [
-        f"{model_dir}/multi_head/{dataset_name}",
-        f"{model_dir}/ours/{dataset_name}",  # backward-compatible location
-    ]
-    ours_model = None
-    for ours_path in ours_candidates:
-        ours_model = load_ours_model(ours_path, device)
-        if ours_model is not None:
-            break
+    ours_path = f"{model_dir}/ours/{dataset_name}"
+    ours_model = load_ours_model(ours_path, device)
     if ours_model is not None:
-        models["Ours (Multi-Head)"] = ours_model
+        models["Ours"] = ours_model
 
     return models
 
@@ -400,3 +393,4 @@ if __name__ == "__main__":
 # Usage:
 # python scripts/compare_models.py --model-dir model --dataset data/maze_preprocessed/mazes_032_moore_c8_ours
 # python scripts/compare_models.py --model-dir model --dataset data/maze_preprocessed/mixed_064_moore_c16_ours
+# python scripts/compare_models.py --model-dir model --dataset data/maze_preprocessed/all_064_moore_c16_ours

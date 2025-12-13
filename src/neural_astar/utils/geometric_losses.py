@@ -42,7 +42,7 @@ class DirectDistanceLoss(nn.Module):
         return diff_sq.mean()
 
 
-class EnhancedVectorFieldLoss(nn.Module):
+class VectorFieldLoss(nn.Module):
     """Vector field alignment supervision using cosine similarity."""
 
     def __init__(
@@ -111,7 +111,7 @@ class CombinedGeodesicLoss(nn.Module):
         self.warmup_epochs = warmup_epochs
 
         self.dist_loss = DirectDistanceLoss()
-        self.vec_loss = EnhancedVectorFieldLoss()
+        self.vec_loss = VectorFieldLoss()
 
     def forward(
         self,
