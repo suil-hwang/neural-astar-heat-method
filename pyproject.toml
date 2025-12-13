@@ -9,16 +9,16 @@ package-dir = {"" = "src"}
 name = "neural_astar"
 requires-python = ">=3.8"
 dependencies = [
-    "torch==2.7.1",
-    "torchvision==0.22.1",
-    "torchaudio==2.7.1",
-    "segmentation-models-pytorch==0.3.1",
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "torchaudio==2.5.1",
+    "segmentation-models-pytorch,
     "pqdict",
     "hydra-core",
-    "numpy==2.3.0",
+    "numpy",
     "tensorboard",
     "moviepy",
-    "pytorch-lightning==2.6.0",
+    "pytorch-lightning==2.5.5",
     "jupyterlab",
     "matplotlib",
     "tensorboardx",
