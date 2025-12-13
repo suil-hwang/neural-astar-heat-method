@@ -1,4 +1,4 @@
-name: neural-astar
+name: neural-astar-heat-method
 channels:
   - pytorch
   - nvidia
