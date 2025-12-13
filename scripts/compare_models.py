@@ -8,8 +8,6 @@ import sys
 import time
 import warnings
 from dataclasses import dataclass, field
-from glob import glob
-from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,6 +20,13 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SRC_ROOT = os.path.join(_REPO_ROOT, "src")
 if _SRC_ROOT not in sys.path:
     sys.path.insert(0, _SRC_ROOT)
+
+# Allow importing shared script utilities when executed as a module (e.g. `import scripts.compare_models`).
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+from common import ENCODER_INPUT_MAP, EncoderInfo, detect_encoder_type
 
 from neural_astar.planner import NeuralAstar, VanillaAstar
 from neural_astar.utils.data import create_dataloader
@@ -38,22 +43,6 @@ logger = logging.getLogger(__name__)
 # Constants
 PLOT_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c"]
 GUIDANCE_KEYS = ("vx", "vy", "dist", "reachable")
-ENCODER_INPUT_MAP = {
-    3: "msg",       # map/start/goal
-    5: "msgdr",     # map/start/goal/dist/reachable
-    7: "mgsvxyr",   # map/goal/start/vx/vy/dist/reachable
-}
-
-
-# Data Classes
-@dataclass
-class EncoderInfo:
-    """Encoder configuration detected from checkpoint."""
-
-    is_gated: bool
-    encoder_arch: str
-    input_channels: int
-    encoder_depth: int
 
 
 @dataclass
@@ -75,113 +64,6 @@ class PlotMetrics:
     exp: list[float] = field(default_factory=list)
     hmean: list[float] = field(default_factory=list)
     time: list[float] = field(default_factory=list)
-
-
-# Checkpoint Analysis Functions
-def _load_checkpoint_state_dict(checkpoint_path: str) -> dict[str, torch.Tensor]:
-    """Load state dict from the latest checkpoint in the directory."""
-    ckpt_files = sorted(glob(f"{checkpoint_path}/**/*.ckpt", recursive=True))
-    if not ckpt_files:
-        raise FileNotFoundError(f"No checkpoint found in {checkpoint_path}")
-
-    ckpt = torch.load(ckpt_files[-1], map_location="cpu", weights_only=True)
-    raw_state = ckpt.get("state_dict", ckpt)
-
-    # Remove leading "planner." (PyTorch Lightning module wrapper) for analysis
-    state: dict[str, torch.Tensor] = {}
-    for key, value in raw_state.items():
-        normalized_key = key.split("planner.", 1)[-1] if key.startswith("planner.") else key
-        state[normalized_key] = value
-
-    return state
-
-
-def _detect_input_channels(state_dict: dict[str, torch.Tensor]) -> int:
-    """Detect input channel count from state dict weights."""
-    for key, value in state_dict.items():
-        if "encoder.model.0.weight" in key:
-            return value.shape[1]
-        if "encoder.stem.0.weight" in key:
-            return value.shape[1]
-        if "encoder.unet.encoder" in key and value.ndim >= 4:
-            return value.shape[1]
-    return 3
-
-
-def _detect_encoder_depth(state_dict: dict[str, torch.Tensor]) -> int:
-    """Detect encoder depth from state dict."""
-    block_indices = []
-    for key in state_dict.keys():
-        if key.startswith("encoder.unet.decoder.blocks"):
-            try:
-                block_indices.append(int(key.split(".")[4]))
-            except (IndexError, ValueError):
-                continue
-    if block_indices:
-        return max(block_indices) + 1
-
-    # Simple CNN: count stem conv stages
-    stem_convs = [
-        key
-        for key, value in state_dict.items()
-        if "stem" in key and key.endswith("weight") and getattr(value, "ndim", 0) >= 4
-    ]
-    if stem_convs:
-        return len(stem_convs)
-
-    return 4
-
-
-def _detect_architecture(
-    state_dict: dict[str, torch.Tensor], has_gated: bool
-) -> str:
-    """Detect encoder architecture type from state dict."""
-    has_decoder = any("decoder" in key for key in state_dict.keys())
-    has_geoattention = any(
-        ("attn_block" in key) or ("attn_blocks" in key) for key in state_dict.keys()
-    )
-    has_cost_head = any("cost_head" in key for key in state_dict.keys())
-    has_dist_head = any("dist_head" in key for key in state_dict.keys())
-    has_vec_head = any("vec_head" in key for key in state_dict.keys())
-
-    # Our geo-supervised model (MultiHeadGeoUnet). Legacy DirectGeoUnet checkpoints
-    # can still be loaded into MultiHeadGeoUnet with strict=False (dist_head will be
-    # randomly initialized in that case).
-    if has_cost_head and (has_dist_head or has_vec_head):
-        if has_decoder:
-            return "MultiHeadGeoUnet"
-        raise ValueError(
-            "Legacy CNN-based geo encoders are no longer supported. "
-            "Please retrain with encoder.arch=MultiHeadGeoUnet."
-        )
-
-    if has_geoattention:
-        raise ValueError(
-            "GeoAttention models are no longer supported in this project. "
-            "This checkpoint contains GeoAttention keys (attn_block/attn_blocks)."
-        )
-    if has_decoder:
-        return "Unet"
-
-    return "CNN"
-
-
-def detect_encoder_type(checkpoint_path: str) -> EncoderInfo:
-    """Detect encoder type and input channels from checkpoint."""
-    state_dict = _load_checkpoint_state_dict(checkpoint_path)
-
-    # Detect Gated Fusion: encoder.fusion.feat_norm or encoder.fusion.feat_geo
-    has_gated_fusion = any(
-        "encoder.fusion.feat_norm" in key or "encoder.fusion.feat_geo" in key
-        for key in state_dict.keys()
-    )
-
-    return EncoderInfo(
-        is_gated=has_gated_fusion,
-        encoder_arch=_detect_architecture(state_dict, has_gated_fusion),
-        input_channels=_detect_input_channels(state_dict),
-        encoder_depth=_detect_encoder_depth(state_dict),
-    )
 
 
 # Model Loading Functions
