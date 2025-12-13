@@ -4,17 +4,24 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import sys
 import time
 import warnings
 from dataclasses import dataclass, field
 from glob import glob
-from typing import Any, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+# Prefer local src/ over any globally installed neural_astar
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_ROOT = os.path.join(_REPO_ROOT, "src")
+if _SRC_ROOT not in sys.path:
+    sys.path.insert(0, _SRC_ROOT)
 
 from neural_astar.planner import NeuralAstar, VanillaAstar
 from neural_astar.utils.data import create_dataloader
@@ -113,7 +120,7 @@ def _detect_encoder_depth(state_dict: dict[str, torch.Tensor]) -> int:
     if block_indices:
         return max(block_indices) + 1
 
-    # GeoAttentionCNN / simple CNN: count stem conv stages
+    # Simple CNN: count stem conv stages
     stem_convs = [
         key
         for key, value in state_dict.items()
@@ -130,13 +137,19 @@ def _detect_architecture(
 ) -> str:
     """Detect encoder architecture type from state dict."""
     has_decoder = any("decoder" in key for key in state_dict.keys())
-    has_attn_block = any("attn_block" in key for key in state_dict.keys())
-    has_attn_blocks = any("attn_blocks" in key for key in state_dict.keys())
+    has_geoattention = any(
+        ("attn_block" in key) or ("attn_blocks" in key) for key in state_dict.keys()
+    )
+    has_cost_head = any("cost_head" in key for key in state_dict.keys())
+    has_vec_head = any("vec_head" in key for key in state_dict.keys())
+    if has_cost_head and has_vec_head:
+        return "DirectGeoUnet" if has_decoder else "DirectGeoCNN"
 
-    if has_attn_block or has_attn_blocks:
-        # Decoder present → Unet variant, otherwise CNN variant
-        return "GeoAttentionUnet" if has_decoder or has_attn_blocks else "GeoAttentionCNN"
-
+    if has_geoattention:
+        raise ValueError(
+            "GeoAttention models are no longer supported in this project. "
+            "This checkpoint contains GeoAttention keys (attn_block/attn_blocks)."
+        )
     if has_decoder:
         return "Unet"
 
@@ -242,7 +255,7 @@ def load_all_models(
     if na_model is not None:
         models["Neural A*"] = na_model
 
-    # Ours (Geodesic-guided Neural A* with Gated Fusion)
+    # Ours (Direct Geodesic supervision)
     ours_path = f"{model_dir}/ours/{dataset_name}"
     ours_model = load_ours_model(ours_path, device)
     if ours_model is not None:
@@ -291,20 +304,13 @@ def _evaluate_single_model(
     opt_trajs: torch.Tensor,
     batch_vanilla_exp: np.ndarray | None,
     device: str,
-    phi: Optional[torch.Tensor] = None,
 ) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
     """Evaluate a single model on one batch and return metrics."""
     if device == "cuda":
         torch.cuda.synchronize()
     start_t = time.time()
 
-    if phi is not None:
-        try:
-            outputs = planner(map_designs, start_maps, goal_maps, phi=phi)
-        except TypeError:
-            outputs = planner(map_designs, start_maps, goal_maps)
-    else:
-        outputs = planner(map_designs, start_maps, goal_maps)
+    outputs = planner(map_designs, start_maps, goal_maps)
 
     if device == "cuda":
         torch.cuda.synchronize()
@@ -331,16 +337,10 @@ def run_comparison(
 
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Evaluating Models"):
-            if len(batch) == 5:
-                map_designs, start_maps, goal_maps, opt_trajs, phi = batch
-            else:
-                map_designs, start_maps, goal_maps, opt_trajs = batch
-                phi = None
+            map_designs, start_maps, goal_maps, opt_trajs = batch
             map_designs = map_designs.to(device)
             start_maps = start_maps.to(device)
             goal_maps = goal_maps.to(device)
-            if phi is not None:
-                phi = phi.to(device)
             current_batch_size = map_designs.size(0)
 
             batch_vanilla_exp = None
@@ -354,7 +354,6 @@ def run_comparison(
                     opt_trajs,
                     batch_vanilla_exp,
                     device,
-                    phi=phi,
                 )
 
                 results[name].is_optimal.extend(is_opt)
@@ -461,17 +460,6 @@ def main() -> None:
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
     parser.add_argument("--batch-size", type=int, default=50)
-    parser.add_argument(
-        "--use-phi",
-        action="store_true",
-        help="Load phi embeddings for geodesic attention models",
-    )
-    parser.add_argument(
-        "--num-anchors",
-        type=int,
-        default=8,
-        help="Number of anchors for phi embedding",
-    )
     args = parser.parse_args()
 
     torch.set_float32_matmul_precision("high")
@@ -481,13 +469,7 @@ def main() -> None:
     # Load data
     logger.info(f"\nLoading dataset from {args.dataset}...")
     test_loader = create_dataloader(
-        args.dataset + ".npz",
-        "test",
-        batch_size=args.batch_size,
-        shuffle=False,
-        geo_supervision=False,
-        use_phi=args.use_phi,
-        num_anchors=args.num_anchors,
+        args.dataset + ".npz", "test", batch_size=args.batch_size, shuffle=False
     )
 
     # Initialize models
@@ -517,8 +499,5 @@ if __name__ == "__main__":
     main()
 
 # Usage:
-# python scripts/compare_models.py --model-dir model_CNN --dataset data/maze_preprocessed/mazes_032_moore_c8_ours
-# python scripts/compare_models.py --model-dir model_CNN --dataset data/maze_preprocessed/mixed_064_moore_c16_ours
-
 # python scripts/compare_models.py --model-dir model --dataset data/maze_preprocessed/mazes_032_moore_c8_ours
 # python scripts/compare_models.py --model-dir model --dataset data/maze_preprocessed/mixed_064_moore_c16_ours

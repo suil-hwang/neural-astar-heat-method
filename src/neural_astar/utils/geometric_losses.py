@@ -1,104 +1,64 @@
 # src/neural_astar/utils/geometric_losses.py
-from typing import List, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
-class GoalCentricGeodesicLoss(nn.Module):
-    """
-    Goal-centric attention supervision.
+class DirectDistanceLoss(nn.Module):
+    """Direct supervision for cost map to match geodesic distance."""
 
-    Uses goal-to-all geodesic distance (1 x H x W) as teacher and trains
-    attention weights to align with softmax(-dist / T) for multiple
-    temperatures to capture local/global structure.
-    """
-
-    def __init__(
-        self,
-        temperatures: Optional[List[float]] = None,
-        loss_type: str = "kl",
-    ) -> None:
+    def __init__(self, normalize: bool = True, mask_unreachable: bool = True) -> None:
         super().__init__()
-        self.temperatures = temperatures or [0.5, 1.0, 2.0]
-        self.loss_type = loss_type
+        self.normalize = normalize
+        self.mask_unreachable = mask_unreachable
 
     def forward(
         self,
-        attn_weights: torch.Tensor,  # [B, H, N, N] or [B, N, N]
-        geo_dist: torch.Tensor,  # [B, 1, H, W]
-        reachable: Optional[torch.Tensor] = None,  # [B, 1, H, W]
+        pred_cost: torch.Tensor,  # [B,1,H,W]
+        gt_distance: torch.Tensor,  # [B,1,H,W]
+        reachable: Optional[torch.Tensor] = None,  # [B,1,H,W]
     ) -> torch.Tensor:
-        if attn_weights.dim() == 4:
-            attn_mean = attn_weights.mean(dim=1)
-        else:
-            attn_mean = attn_weights
+        pred = pred_cost
+        gt = gt_distance
 
-        b, n, _ = attn_mean.shape
-        # Infer bottleneck spatial size
-        side = int(n ** 0.5)
-        if side * side != n:
-            raise ValueError(f"Attention tokens {n} not square (side={side})")
+        if self.normalize:
+            if reachable is not None:
+                mask = (reachable > 0.5).float()
+                denom = (gt * mask).amax(dim=(2, 3), keepdim=True).clamp_min(1e-6)
+            else:
+                denom = gt.amax(dim=(2, 3), keepdim=True).clamp_min(1e-6)
+            pred = pred / denom
+            gt = gt / denom
 
-        geo_ds = F.interpolate(
-            geo_dist, size=(side, side), mode="bilinear", align_corners=False
-        )
-        geo_flat = geo_ds.flatten(2)  # [B,1,N]
+        diff_sq = (pred - gt) ** 2
 
-        mask_flat = None
-        if reachable is not None:
-            kernel_size = max(1, reachable.shape[-1] // side)
-            reach_ds = F.max_pool2d(reachable, kernel_size=kernel_size)
-            mask_flat = reach_ds.flatten(2) > 0.5  # [B,1,N]
+        if self.mask_unreachable and reachable is not None:
+            mask = (reachable > 0.5).float()
+            denom = mask.sum() + 1e-8
+            return (diff_sq * mask).sum() / denom
 
-        total_loss = 0.0
-        for t in self.temperatures:
-            target = self._goal_soft_target(geo_flat, mask_flat, temperature=t)
-            loss = self._compute_loss(attn_mean, target, mask_flat)
-            total_loss = total_loss + loss
-        return total_loss / len(self.temperatures)
+        return diff_sq.mean()
 
-    def _goal_soft_target(
+
+class EnhancedVectorFieldLoss(nn.Module):
+    """Vector field alignment supervision using cosine similarity."""
+
+    def __init__(
         self,
-        geo_flat: torch.Tensor,  # [B,1,N]
-        mask_flat: Optional[torch.Tensor],
-        temperature: float,
-    ) -> torch.Tensor:
-        neg = -geo_flat / temperature
-        if mask_flat is not None:
-            neg = neg.masked_fill(~mask_flat, -1e9)
-        target_row = F.softmax(neg, dim=-1)  # [B,1,N]
-        target = target_row.expand(-1, geo_flat.shape[-1], -1)  # [B,N,N]; row-wise identical
-        return target
-
-    def _compute_loss(
-        self,
-        attn: torch.Tensor,  # [B,N,N]
-        target: torch.Tensor,  # [B,N,N]
-        mask_flat: Optional[torch.Tensor],
-    ) -> torch.Tensor:
-        if self.loss_type == "mse":
-            loss = F.mse_loss(attn, target, reduction="none")
-        else:
-            log_attn = torch.log(attn + 1e-9)
-            loss = F.kl_div(log_attn, target, reduction="none", log_target=False)
-
-        if mask_flat is not None:
-            mask = mask_flat.squeeze(1)  # [B,N]
-            mask_matrix = mask.unsqueeze(1) & mask.unsqueeze(2)
-            loss = loss * mask_matrix.float()
-            denom = mask_matrix.float().sum() + 1e-9
-            return loss.sum() / denom
-        return loss.mean()
-
-
-class VectorFieldLoss(nn.Module):
-    """Vector field direction supervision with masking."""
-
-    def __init__(self, loss_type: str = "cosine") -> None:
+        use_magnitude_weight: bool = True,
+        smooth_weight: float = 0.0,
+    ) -> None:
         super().__init__()
-        self.loss_type = loss_type
+        self.use_magnitude_weight = use_magnitude_weight
+        self.smooth_weight = smooth_weight
+
+        if smooth_weight > 0:
+            laplacian = torch.tensor(
+                [[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=torch.float32
+            ).view(1, 1, 3, 3)
+            self.register_buffer("laplacian_kernel", laplacian)
 
     def forward(
         self,
@@ -108,18 +68,100 @@ class VectorFieldLoss(nn.Module):
         gt_vy: torch.Tensor,  # [B,1,H,W]
         reachable: torch.Tensor,  # [B,1,H,W]
     ) -> torch.Tensor:
-        mask = reachable > 0.5
+        pred_mag = torch.sqrt(pred_vx**2 + pred_vy**2 + 1e-8)
+        pred_vx_norm = pred_vx / pred_mag
+        pred_vy_norm = pred_vy / pred_mag
 
-        if self.loss_type == "mse":
-            loss = (pred_vx - gt_vx) ** 2 + (pred_vy - gt_vy) ** 2
+        gt_mag = torch.sqrt(gt_vx**2 + gt_vy**2 + 1e-8)
+        gt_vx_norm = gt_vx / gt_mag
+        gt_vy_norm = gt_vy / gt_mag
+
+        cos_sim = pred_vx_norm * gt_vx_norm + pred_vy_norm * gt_vy_norm
+
+        mask = (reachable > 0.5).float()
+        if self.use_magnitude_weight:
+            weight = mask * gt_mag
         else:
-            pred_vec = torch.cat([pred_vx, pred_vy], dim=1)
-            gt_vec = torch.cat([gt_vx, gt_vy], dim=1)
+            weight = mask
 
-            dot = (pred_vec * gt_vec).sum(dim=1, keepdim=True)
-            loss = 1.0 - dot
+        denom = weight.sum() + 1e-8
+        loss = ((1.0 - cos_sim) * weight).sum() / denom
 
-        loss = loss * mask.float()
-        denom = mask.float().sum() + 1e-8
-        return loss.sum() / denom
+        if self.smooth_weight > 0:
+            lap_vx = F.conv2d(pred_vx, self.laplacian_kernel, padding=1)
+            lap_vy = F.conv2d(pred_vy, self.laplacian_kernel, padding=1)
+            smooth_loss = (lap_vx**2 + lap_vy**2).mean()
+            loss = loss + self.smooth_weight * smooth_loss
 
+        return loss
+
+
+class CombinedGeodesicLoss(nn.Module):
+    """Combined distance + vector field supervision."""
+
+    def __init__(
+        self,
+        dist_weight: float = 1.0,
+        vec_weight: float = 1.0,
+        warmup_epochs: int = 0,
+    ) -> None:
+        super().__init__()
+        self.dist_weight = dist_weight
+        self.vec_weight = vec_weight
+        self.warmup_epochs = warmup_epochs
+
+        self.dist_loss = DirectDistanceLoss()
+        self.vec_loss = EnhancedVectorFieldLoss()
+
+    def forward(
+        self,
+        pred_cost: Optional[torch.Tensor],
+        pred_vx: Optional[torch.Tensor],
+        pred_vy: Optional[torch.Tensor],
+        gt_distance: Optional[torch.Tensor],
+        gt_vx: Optional[torch.Tensor],
+        gt_vy: Optional[torch.Tensor],
+        reachable: Optional[torch.Tensor],
+        current_epoch: int = 0,
+    ) -> tuple[torch.Tensor, dict]:
+        device = None
+        for t in (pred_cost, pred_vx, pred_vy, gt_distance, reachable):
+            if isinstance(t, torch.Tensor):
+                device = t.device
+                break
+        if device is None:
+            device = torch.device("cpu")
+        zero = torch.tensor(0.0, device=device)
+
+        if self.warmup_epochs > 0:
+            warmup_factor = min(1.0, float(current_epoch) / float(self.warmup_epochs))
+        else:
+            warmup_factor = 1.0
+
+        l_dist = zero
+        if pred_cost is not None and gt_distance is not None:
+            l_dist = self.dist_loss(pred_cost, gt_distance, reachable)
+
+        l_vec = zero
+        if (
+            pred_vx is not None
+            and pred_vy is not None
+            and gt_vx is not None
+            and gt_vy is not None
+            and reachable is not None
+        ):
+            l_vec = self.vec_loss(pred_vx, pred_vy, gt_vx, gt_vy, reachable)
+
+        total = (
+            self.dist_weight * warmup_factor * l_dist
+            + self.vec_weight * warmup_factor * l_vec
+        )
+
+        loss_dict = {
+            "loss/dist": l_dist.detach(),
+            "loss/vec": l_vec.detach(),
+            "loss/geo_total": total.detach(),
+            "meta/warmup_factor": warmup_factor,
+        }
+
+        return total, loss_dict

@@ -18,6 +18,12 @@ import torch
 from moviepy import ImageSequenceClip
 from PIL import Image, ImageDraw, ImageFont
 
+# Prefer local src/ over any globally installed neural_astar
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_ROOT = os.path.join(_REPO_ROOT, "src")
+if _SRC_ROOT not in sys.path:
+    sys.path.insert(0, _SRC_ROOT)
+
 from neural_astar.planner import NeuralAstar, VanillaAstar
 from neural_astar.utils.data import create_dataloader, visualize_results
 from neural_astar.utils.training import load_from_ptl_checkpoint
@@ -31,7 +37,11 @@ torch.set_float32_matmul_precision("high")
 
 
 # Constants
-MODEL_DISPLAY_NAMES = {"vanilla": "A*", "neural_astar": "Neural A*", "ours": "Ours"}
+MODEL_DISPLAY_NAMES = {
+    "vanilla": "A*",
+    "neural_astar": "Neural A*",
+    "ours": "Ours (Direct)",
+}
 ENCODER_INPUT_MAP = {3: "msg", 2: "m+"}
 DEFAULT_FPS = 15
 PAUSE_FRAMES = 15
@@ -65,13 +75,13 @@ def parse_include_infer_time_flag(argv: list[str]) -> bool:
         "--include-infer-time",
         dest="include_infer_time",
         action="store_true",
-        help="GIF 헤더에 추론 시간을 표시합니다. (기본: 비표시)",
+        help="Show inference time in GIF headers (default: hidden)",
     )
     parser.add_argument(
         "--no-include-infer-time",
         dest="include_infer_time",
         action="store_false",
-        help="GIF 헤더에서 추론 시간을 숨깁니다.",
+        help="Hide inference time in GIF headers",
     )
     parser.set_defaults(include_infer_time=False)
     args, remaining = parser.parse_known_args(argv)
@@ -104,7 +114,10 @@ def _detect_input_channels(state_dict: dict[str, torch.Tensor]) -> int:
         # Standard encoder
         if "planner.encoder.model.0.weight" in key or "encoder.model.0.weight" in key:
             return value.shape[1]
-        # Geo-attention U-Net
+        # CNN variants with stem
+        if "encoder.stem.0.weight" in key:
+            return value.shape[1]
+        # U-Net variants
         if "encoder.unet.encoder" in key and value.ndim >= 4:
             return value.shape[1]
     return 3
@@ -138,9 +151,19 @@ def _detect_encoder_depth(state_dict: dict[str, torch.Tensor]) -> int:
 def _detect_architecture(state_dict: dict[str, torch.Tensor], has_gated: bool) -> str:
     """Detect encoder architecture type from state dict."""
     has_unet = any("decoder" in key for key in state_dict.keys())
-    has_geo_attn = any("attn_blocks" in key for key in state_dict.keys())
-    if has_geo_attn:
-        return "GeoAttentionUnet"
+    has_geoattention = any(
+        ("attn_block" in key) or ("attn_blocks" in key) for key in state_dict.keys()
+    )
+    has_cost_head = any("cost_head" in key for key in state_dict.keys())
+    has_vec_head = any("vec_head" in key for key in state_dict.keys())
+    if has_cost_head and has_vec_head:
+        return "DirectGeoUnet" if has_unet else "DirectGeoCNN"
+
+    if has_geoattention:
+        raise ValueError(
+            "GeoAttention models are no longer supported in this project. "
+            "This checkpoint contains GeoAttention keys (attn_block/attn_blocks)."
+        )
     return "Unet" if has_unet else "CNN"
 
 
