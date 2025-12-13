@@ -141,9 +141,19 @@ def _detect_architecture(
         ("attn_block" in key) or ("attn_blocks" in key) for key in state_dict.keys()
     )
     has_cost_head = any("cost_head" in key for key in state_dict.keys())
+    has_dist_head = any("dist_head" in key for key in state_dict.keys())
     has_vec_head = any("vec_head" in key for key in state_dict.keys())
-    if has_cost_head and has_vec_head:
-        return "DirectGeoUnet" if has_decoder else "DirectGeoCNN"
+
+    # Our geo-supervised model (MultiHeadGeoUnet). Legacy DirectGeoUnet checkpoints
+    # can still be loaded into MultiHeadGeoUnet with strict=False (dist_head will be
+    # randomly initialized in that case).
+    if has_cost_head and (has_dist_head or has_vec_head):
+        if has_decoder:
+            return "MultiHeadGeoUnet"
+        raise ValueError(
+            "Legacy CNN-based geo encoders are no longer supported. "
+            "Please retrain with encoder.arch=MultiHeadGeoUnet."
+        )
 
     if has_geoattention:
         raise ValueError(

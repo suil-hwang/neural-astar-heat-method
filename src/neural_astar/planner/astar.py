@@ -111,6 +111,7 @@ class NeuralAstar(VanillaAstar):
         )
         self._last_vector_field = None
         self._last_cost_map = None
+        self._last_geo_predictions = None
         
         self.learn_obstacles = learn_obstacles
         if self.learn_obstacles:
@@ -153,14 +154,19 @@ class NeuralAstar(VanillaAstar):
 
         encoded = self.encoder(inputs)
         self._last_vector_field = None
+        self._last_geo_predictions = None
 
         if isinstance(encoded, dict):
             cost_maps = encoded.get("cost_map", encoded.get("cost_maps", None))
             self._last_vector_field = encoded.get("vector_field", None)
+            self._last_geo_predictions = encoded.get("geo_predictions", None)
             if cost_maps is None:
                 raise ValueError("Encoder dict output must contain 'cost_map'")
         else:
             cost_maps = encoded
+
+        if hasattr(self.encoder, "get_geo_predictions"):
+            self._last_geo_predictions = self.encoder.get_geo_predictions()
 
         if hasattr(self.encoder, "get_vector_field"):
             self._last_vector_field = self.encoder.get_vector_field()
@@ -207,6 +213,10 @@ class NeuralAstar(VanillaAstar):
     def get_vector_field(self):
         return self._last_vector_field
 
+    def get_geo_predictions(self):
+        """Return last geodesic predictions for auxiliary supervision (if available)."""
+        return self._last_geo_predictions
+
     def get_cost_map(self) -> torch.Tensor | None:
-        """Return the last predicted cost map (for direct distance supervision)."""
+        """Return the last predicted cost map used by A*."""
         return self._last_cost_map

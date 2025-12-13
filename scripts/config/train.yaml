@@ -8,8 +8,8 @@ mode: "ours" # Options: neural_astar, ours
 
 encoder:
   input: "msg"
-  arch: "DirectGeoUnet"
-  backbone: "vgg16_bn"  # used by DirectGeoUnet
+  arch: "MultiHeadGeoUnet"
+  backbone: "vgg16_bn"  # used by MultiHeadGeoUnet
   depth: 2 # 32x32
 #  depth: 3 # 64x64
 

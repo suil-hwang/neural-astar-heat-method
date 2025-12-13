@@ -131,22 +131,31 @@ class PlannerModule(pl.LightningModule):
             path_weight = getattr(self.config.params, "path_loss_weight", 1.0)
             path_loss = path_loss * path_weight
 
-            pred_cost = (
-                self.planner.get_cost_map()
-                if hasattr(self.planner, "get_cost_map")
+            # Geo supervision uses auxiliary geodesic predictions when available.
+            pred_dist = pred_vx = pred_vy = None
+            geo_pred = (
+                self.planner.get_geo_predictions()
+                if hasattr(self.planner, "get_geo_predictions")
                 else None
             )
-            vector_field = (
-                self.planner.get_vector_field()
-                if hasattr(self.planner, "get_vector_field")
-                else None
-            )
-            pred_vx = pred_vy = None
-            if vector_field is not None and vector_field[0] is not None:
-                pred_vx, pred_vy = vector_field
+            if isinstance(geo_pred, dict):
+                pred_dist = geo_pred.get("dist", geo_pred.get("distance"))
+                pred_vx = geo_pred.get("vx")
+                pred_vy = geo_pred.get("vy")
+
+            # Backward-compatible fallback (older "direct" encoders used cost map as distance)
+            if pred_dist is None and hasattr(self.planner, "get_cost_map"):
+                pred_dist = self.planner.get_cost_map()
+
+            if (pred_vx is None or pred_vy is None) and hasattr(
+                self.planner, "get_vector_field"
+            ):
+                vector_field = self.planner.get_vector_field()
+                if vector_field is not None and vector_field[0] is not None:
+                    pred_vx, pred_vy = vector_field
 
             geo_loss, loss_dict = self.geo_loss_fn(
-                pred_cost,
+                pred_dist,
                 pred_vx,
                 pred_vy,
                 dist,
@@ -209,22 +218,29 @@ class PlannerModule(pl.LightningModule):
             path_weight = getattr(self.config.params, "path_loss_weight", 1.0)
             path_loss = path_loss * path_weight
 
-            pred_cost = (
-                self.planner.get_cost_map()
-                if hasattr(self.planner, "get_cost_map")
+            pred_dist = pred_vx = pred_vy = None
+            geo_pred = (
+                self.planner.get_geo_predictions()
+                if hasattr(self.planner, "get_geo_predictions")
                 else None
             )
-            vector_field = (
-                self.planner.get_vector_field()
-                if hasattr(self.planner, "get_vector_field")
-                else None
-            )
-            pred_vx = pred_vy = None
-            if vector_field is not None and vector_field[0] is not None:
-                pred_vx, pred_vy = vector_field
+            if isinstance(geo_pred, dict):
+                pred_dist = geo_pred.get("dist", geo_pred.get("distance"))
+                pred_vx = geo_pred.get("vx")
+                pred_vy = geo_pred.get("vy")
+
+            if pred_dist is None and hasattr(self.planner, "get_cost_map"):
+                pred_dist = self.planner.get_cost_map()
+
+            if (pred_vx is None or pred_vy is None) and hasattr(
+                self.planner, "get_vector_field"
+            ):
+                vector_field = self.planner.get_vector_field()
+                if vector_field is not None and vector_field[0] is not None:
+                    pred_vx, pred_vy = vector_field
 
             geo_loss, loss_dict = self.geo_loss_fn(
-                pred_cost,
+                pred_dist,
                 pred_vx,
                 pred_vy,
                 dist,

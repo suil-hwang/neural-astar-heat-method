@@ -40,7 +40,7 @@ torch.set_float32_matmul_precision("high")
 MODEL_DISPLAY_NAMES = {
     "vanilla": "A*",
     "neural_astar": "Neural A*",
-    "ours": "Ours (Direct)",
+    "ours": "Ours (Multi-Head)",
 }
 ENCODER_INPUT_MAP = {3: "msg", 2: "m+"}
 DEFAULT_FPS = 15
@@ -155,9 +155,16 @@ def _detect_architecture(state_dict: dict[str, torch.Tensor], has_gated: bool) -
         ("attn_block" in key) or ("attn_blocks" in key) for key in state_dict.keys()
     )
     has_cost_head = any("cost_head" in key for key in state_dict.keys())
+    has_dist_head = any("dist_head" in key for key in state_dict.keys())
     has_vec_head = any("vec_head" in key for key in state_dict.keys())
-    if has_cost_head and has_vec_head:
-        return "DirectGeoUnet" if has_unet else "DirectGeoCNN"
+
+    if has_cost_head and (has_dist_head or has_vec_head):
+        if has_unet:
+            return "MultiHeadGeoUnet"
+        raise ValueError(
+            "Legacy CNN-based geo encoders are no longer supported. "
+            "Please retrain with encoder.arch=MultiHeadGeoUnet."
+        )
 
     if has_geoattention:
         raise ValueError(
