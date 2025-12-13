@@ -66,16 +66,16 @@ def main(config):
     )
 
     encoder_arch = str(config.encoder.arch)
-    if geo_supervision and not encoder_arch.startswith("DirectGeo"):
+    if geo_supervision and encoder_arch != "MultiHeadGeoUnet":
         print(
             f"Warning: mode=ours but encoder.arch={encoder_arch!r}. "
-            "Recommended: DirectGeoUnet or DirectGeoCNN"
+            "Recommended: MultiHeadGeoUnet"
         )
 
     # Optional encoder kwargs (e.g., backbone for Unet variants)
     encoder_kwargs = {}
     backbone = getattr(config.encoder, "backbone", None)
-    if backbone is not None and encoder_arch == "DirectGeoUnet":
+    if backbone is not None and encoder_arch == "MultiHeadGeoUnet":
         encoder_kwargs["backbone"] = backbone
     const_val = getattr(config, 'const', None)
     
@@ -135,8 +135,8 @@ if __name__ == "__main__":
 # 1. Standard Neural A* 
 # python scripts/train.py mode=neural_astar encoder.arch=Unet 
 
-# 2. Ours (Geo-supervised)
-# python scripts/train.py mode=ours encoder.arch=DirectGeoUnet
+# 2. Ours (Geo-supervised with MultiHeadGeoUnet)
+# python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet
 
 # Tensorboard
 # tensorboard --logdir model/ours/mazes_032_moore_c8_ours
