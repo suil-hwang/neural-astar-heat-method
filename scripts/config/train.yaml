@@ -18,15 +18,16 @@ params:
   num_epochs: 100
   lr: 5e-4
   num_workers: 4
-  #path_loss_weight: 1.0 # default
 
-  # mode=ours
-  # 실험 1: Heuristic만 학습 (Path loss 없이)
-  path_loss_weight: 1.0       
+
+  # Loss Weights
+  path_loss_weight: 1.0 # default    
   geo_loss_weight: 1.0
   dist_loss_weight: 1.0
   vec_loss_weight: 0.1
-  geo_warmup_epochs: 0
+
+  # Warmup Strategy
+  geo_warmup_epochs: 5
 
 
 
