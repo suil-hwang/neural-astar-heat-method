@@ -34,16 +34,21 @@ def main(config):
     # Set random seed
     set_global_seeds(config.seed)
     
-    # Determine mode (only two modes supported)
+    # Determine mode
+    # - neural_astar: vanilla Neural A* training (no geo supervision)
+    # - multi_head: multi-head geo-supervised training (recommended)
+    # - ours: backward-compatible alias for multi_head
     mode = getattr(config, "mode", "neural_astar")
-    if mode not in ("neural_astar", "ours"):
+    if mode not in ("neural_astar", "multi_head", "ours"):
         raise ValueError(
-            f"Unsupported mode={mode!r}. Supported modes: neural_astar, ours."
+            f"Unsupported mode={mode!r}. Supported modes: neural_astar, multi_head, ours."
         )
 
     # Determine supervision mode
-    direct_geo_supervision = mode == "ours"
-    encoder_input = "msg" if direct_geo_supervision else config.encoder.input  # Default: "m+"
+    if mode == "ours":
+        print("Warning: mode=ours is deprecated; use mode=multi_head instead.")
+    geo_supervision = mode in ("multi_head", "ours")
+    encoder_input = "msg" if geo_supervision else config.encoder.input  # Default: "m+"
     
     # Get num_workers from config
     num_workers = getattr(config.params, 'num_workers', 4)
@@ -54,7 +59,7 @@ def main(config):
         config.params.batch_size,
         shuffle=True,
         num_workers=num_workers,
-        geo_supervision=direct_geo_supervision,
+        geo_supervision=geo_supervision,
     )
     val_loader = create_dataloader(
         config.dataset + ".npz",
@@ -62,14 +67,14 @@ def main(config):
         config.params.batch_size,
         shuffle=False,
         num_workers=num_workers,
-        geo_supervision=direct_geo_supervision,
+        geo_supervision=geo_supervision,
     )
 
     encoder_arch = str(config.encoder.arch)
-    if mode == "ours" and encoder_arch != "MultiHeadGeoUnet":
+    if geo_supervision and encoder_arch != "MultiHeadGeoUnet":
         print(
-            f"Warning: mode=ours but encoder.arch={encoder_arch!r}. "
-            "Recommended: MultiHeadGeoUnet"
+            f"Warning: mode={mode} but encoder.arch={encoder_arch!r}. "
+            "Recommended: MultiHeadGeoUnet for geo supervision."
         )
 
     # Optional encoder kwargs (e.g., backbone for Unet variants)
@@ -102,7 +107,7 @@ def main(config):
     print(f"Encoder: {encoder_arch} (input channels: {len(encoder_input)})")
     print(f"Encoder depth: {encoder_depth}")
     
-    print(f"Geo Supervision (ours): {direct_geo_supervision}")
+    print(f"Geo Supervision: {geo_supervision}")
     
     print("=" * 60)
 
@@ -110,7 +115,7 @@ def main(config):
         neural_astar,
         config,
         use_guidance=False,
-        direct_geo_supervision=direct_geo_supervision,
+        direct_geo_supervision=geo_supervision,
     )
     logdir = f"{config.logdir}/{mode}/{os.path.basename(config.dataset)}"
     enable_progress_bar = sys.stdout.isatty()
@@ -135,9 +140,12 @@ if __name__ == "__main__":
 # 1. Standard Neural A* 
 # python scripts/train.py mode=neural_astar encoder.arch=Unet 
 
-# 2. Ours
+# 2. Multi-Head Geo Supervision (recommended)
+# python scripts/train.py mode=multi_head encoder.arch=MultiHeadGeoUnet
+
+# 3. Backward-compatible alias
 # python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet
 
 # Tensorboard
-# tensorboard --logdir model/ours/mazes_032_moore_c8_ours
-# tensorboard --logdir model/ours/mixed_064_moore_c16_ours
+# tensorboard --logdir model/multi_head/mazes_032_moore_c8_ours
+# tensorboard --logdir model/multi_head/mixed_064_moore_c16_ours

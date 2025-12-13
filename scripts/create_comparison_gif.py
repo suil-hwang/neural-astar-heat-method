@@ -473,10 +473,13 @@ def main(config) -> None:
     goal_map = goal_maps[problem_id : problem_id + 1]
 
     # Define models to compare
+    ours_dir = os.path.join(model_dir, "multi_head", dataname)
+    if not os.path.exists(ours_dir):
+        ours_dir = os.path.join(model_dir, "ours", dataname)
     models_config = {
         "vanilla": None,
         "neural_astar": os.path.join(model_dir, "neural_astar", dataname),
-        "ours": os.path.join(model_dir, "ours", dataname),
+        "ours": ours_dir,
     }
 
     # Process all models

@@ -265,11 +265,18 @@ def load_all_models(
     if na_model is not None:
         models["Neural A*"] = na_model
 
-    # Ours (Direct Geodesic supervision)
-    ours_path = f"{model_dir}/ours/{dataset_name}"
-    ours_model = load_ours_model(ours_path, device)
+    # Ours (Geo-supervised)
+    ours_candidates = [
+        f"{model_dir}/multi_head/{dataset_name}",
+        f"{model_dir}/ours/{dataset_name}",  # backward-compatible location
+    ]
+    ours_model = None
+    for ours_path in ours_candidates:
+        ours_model = load_ours_model(ours_path, device)
+        if ours_model is not None:
+            break
     if ours_model is not None:
-        models["Ours"] = ours_model
+        models["Ours (Multi-Head)"] = ours_model
 
     return models
 
