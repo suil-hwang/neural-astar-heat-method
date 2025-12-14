@@ -60,6 +60,50 @@ class ModelOutput:
     display_name: str
 
 
+def parse_problem_ids(problem_id_str: str) -> list[int]:
+    """Parse problem_id string supporting comma-separated and range formats.
+    
+    Supported formats:
+        - Single value: "5" -> [5]
+        - Comma-separated: "4,5,6,7" -> [4, 5, 6, 7]
+        - Range: "4-7" -> [4, 5, 6, 7]
+        - Mixed: "1,4-7,10" -> [1, 4, 5, 6, 7, 10]
+    """
+    result = []
+    parts = str(problem_id_str).split(",")
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        
+        if "-" in part:
+            # Range format: "4-7"
+            try:
+                start, end = part.split("-", 1)
+                start_val = int(start.strip())
+                end_val = int(end.strip())
+                result.extend(range(start_val, end_val + 1))
+            except ValueError:
+                print(f"  [WARN] Invalid range format: {part}")
+        else:
+            # Single value
+            try:
+                result.append(int(part))
+            except ValueError:
+                print(f"  [WARN] Invalid problem_id: {part}")
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_result = []
+    for pid in result:
+        if pid not in seen:
+            seen.add(pid)
+            unique_result.append(pid)
+    
+    return unique_result
+
+
 def parse_include_infer_time_flag(argv: list[str]) -> bool:
     """Parse CLI flag to control inference time display (default: hidden)."""
     parser = argparse.ArgumentParser(
@@ -338,56 +382,40 @@ def create_comparison_gif(
 
 
 # Main Entry Point
-@hydra.main(config_path="config", config_name="create_gif", version_base="1.3")
-def main(config) -> None:
-    """Main entry point for GIF creation."""
-    global INCLUDE_INFER_TIME
-    show_infer_time = INCLUDE_INFER_TIME
+def process_single_problem(
+    config,
+    problem_id: int,
+    map_designs: torch.Tensor,
+    start_maps: torch.Tensor,
+    goal_maps: torch.Tensor,
+    loaded_planners: dict,
+    show_infer_time: bool,
+) -> bool:
+    """Process a single problem and create GIFs.
+    
+    Returns:
+        True if successful, False otherwise.
+    """
     dataname = os.path.basename(config.dataset)
-    problem_id = config.get("problem_id", 1)
-    model_dir = config.get("modeldir", "model")
-
-    print(f"\n{'=' * 60}")
-    print(f"Creating Comparison GIF for Problem {problem_id}")
-    print(f"Dataset: {dataname}")
-    print(f"{'=' * 60}\n")
-
-    # Load test data
-    dataloader = create_dataloader(
-        config.dataset + ".npz", "test", 100, shuffle=False, num_starts=1
-    )
-    map_designs, start_maps, goal_maps, _ = next(iter(dataloader))
-
+    
+    # Validate problem_id
+    max_samples = map_designs.shape[0]
+    if problem_id < 0 or problem_id >= max_samples:
+        print(f"  [SKIP] problem_id={problem_id} out of range (0-{max_samples - 1})")
+        return False
+    
     # Get single problem
     map_design = map_designs[problem_id : problem_id + 1]
     start_map = start_maps[problem_id : problem_id + 1]
     goal_map = goal_maps[problem_id : problem_id + 1]
-
-    # Define models to compare
-    models_config = {
-        "vanilla": None,
-        "neural_astar": os.path.join(model_dir, "neural_astar", dataname),
-        "ours": os.path.join(model_dir, "ours", dataname),
-    }
-
-    # Process all models
+    
+    # Run inference for all models
     all_outputs: dict[str, ModelOutput] = {}
-
-    for model_name, checkpoint_path in models_config.items():
-        print(f"Processing {model_name.upper()} model...")
-
-        input_channels = 3  # default for vanilla and neural_astar
-
-        if model_name == "vanilla":
-            planner = load_vanilla_planner()
-        else:
-            result = load_neural_planner(checkpoint_path, config.encoder.depth)
-            if result is None:
-                continue
-            planner, info = result
-            input_channels = info.input_channels
-
-        # Run inference
+    
+    for model_name, planner_info in loaded_planners.items():
+        planner = planner_info["planner"]
+        input_channels = planner_info["input_channels"]
+        
         model_output = run_inference(
             model_name,
             planner,
@@ -400,33 +428,117 @@ def main(config) -> None:
         )
         if model_output is not None:
             all_outputs[model_name] = model_output
-
+    
     if not all_outputs:
-        print("\nError: No models were successfully loaded!")
-        return
-
+        print(f"  [FAIL] No outputs for problem_id={problem_id}")
+        return False
+    
     # Create output directory
     savedir = f"{config.resultdir}/comparison"
     os.makedirs(savedir, exist_ok=True)
-
+    
     # Save individual GIFs
-    print("\nSaving individual GIFs...")
     for model_name, model_output in all_outputs.items():
         gif_path = f"{savedir}/{model_name}_{dataname}_{problem_id:04d}.gif"
         create_individual_gif(
             model_output, map_design, gif_path, show_infer_time=show_infer_time
         )
-
+    
     # Create comparison GIF
-    print("\nCreating comparison GIF...")
     comparison_path = f"{savedir}/comparison_{dataname}_{problem_id:04d}.gif"
     create_comparison_gif(
         all_outputs, map_design, comparison_path, show_infer_time=show_infer_time
     )
+    
+    print(f"  [OK] comparison_{dataname}_{problem_id:04d}.gif")
+    return True
 
+
+@hydra.main(config_path="config", config_name="create_gif", version_base="1.3")
+def main(config) -> None:
+    """Main entry point for GIF creation."""
+    global INCLUDE_INFER_TIME
+    show_infer_time = INCLUDE_INFER_TIME
+    dataname = os.path.basename(config.dataset)
+    model_dir = config.get("modeldir", "model")
+    
+    # Parse problem_ids (supports: "5", "4,5,6", "4-7", "1,4-7,10")
+    problem_id_raw = config.get("problem_id", "0")
+    problem_ids = parse_problem_ids(str(problem_id_raw))
+    
+    if not problem_ids:
+        print("Error: No valid problem_id specified!")
+        return
+    
     print(f"\n{'=' * 60}")
-    print(f"[OK] Comparison GIF saved: {comparison_path}")
-    print(f"  Models compared: {', '.join(all_outputs.keys())}")
+    print(f"Creating Comparison GIFs")
+    print(f"Dataset: {dataname}")
+    print(f"Problem IDs: {problem_ids}")
+    print(f"{'=' * 60}\n")
+    
+    # Load test data once
+    dataloader = create_dataloader(
+        config.dataset + ".npz", "test", 100, shuffle=False, num_starts=1
+    )
+    map_designs, start_maps, goal_maps, _ = next(iter(dataloader))
+    
+    # Define models to compare
+    models_config = {
+        "vanilla": None,
+        "neural_astar": os.path.join(model_dir, "neural_astar", dataname),
+        "ours": os.path.join(model_dir, "ours", dataname),
+    }
+    
+    # Load all models once
+    print("Loading models...")
+    loaded_planners: dict = {}
+    
+    for model_name, checkpoint_path in models_config.items():
+        print(f"  Loading {model_name.upper()}...")
+        
+        if model_name == "vanilla":
+            loaded_planners[model_name] = {
+                "planner": load_vanilla_planner(),
+                "input_channels": 1,
+            }
+        else:
+            result = load_neural_planner(checkpoint_path, config.encoder.depth)
+            if result is not None:
+                planner, info = result
+                loaded_planners[model_name] = {
+                    "planner": planner,
+                    "input_channels": info.input_channels,
+                }
+    
+    if not loaded_planners:
+        print("\nError: No models were successfully loaded!")
+        return
+    
+    print(f"\nModels loaded: {list(loaded_planners.keys())}")
+    
+    # Process each problem_id
+    print(f"\n{'=' * 60}")
+    print(f"Processing {len(problem_ids)} problem(s)...")
+    print(f"{'=' * 60}")
+    
+    success_count = 0
+    for problem_id in problem_ids:
+        print(f"\n[Problem {problem_id}]")
+        if process_single_problem(
+            config,
+            problem_id,
+            map_designs,
+            start_maps,
+            goal_maps,
+            loaded_planners,
+            show_infer_time,
+        ):
+            success_count += 1
+    
+    # Summary
+    print(f"\n{'=' * 60}")
+    print(f"[DONE] Created {success_count}/{len(problem_ids)} comparison GIFs")
+    print(f"  Output: {config.resultdir}/comparison/")
     print(f"{'=' * 60}\n")
 
 
@@ -435,7 +547,7 @@ if __name__ == "__main__":
     main()
 
 # Usage:
-# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mazes_032_moore_c8_ours modeldir=model problem_id=0 resultdir=results 
-# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mixed_064_moore_c16_ours modeldir=model problem_id=15 resultdir=results 
-# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/all_064_moore_c16_ours modeldir=model problem_id=15 resultdir=results 
+# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mazes_032_moore_c8_ours modeldir=model resultdir=results problem_id=0-30
+# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/mixed_064_moore_c16_ours modeldir=model resultdir=results problem_id=0-30
+# python scripts/create_comparison_gif.py dataset=data/maze_preprocessed/all_064_moore_c16_ours modeldir=model resultdir=results problem_id=0-30
 
