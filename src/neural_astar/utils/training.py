@@ -1,5 +1,6 @@
 # src/neural_astar/utils/training.py
 from __future__ import annotations
+import sys
 
 import random
 import re
@@ -9,6 +10,12 @@ import numpy as np
 import logging
 
 import pytorch_lightning as pl
+
+# Disable torch.compile/dynamo on Windows (Triton is not supported)
+if sys.platform == "win32":
+    import torch._dynamo
+    torch._dynamo.config.suppress_errors = True
+    torch._dynamo.disable()
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
 import torch
 import torch.nn as nn
@@ -55,11 +62,40 @@ class PlannerModule(pl.LightningModule):
             self.geo_loss_fn = CombinedGeodesicLoss(
                 dist_weight=getattr(config.params, "dist_loss_weight", 1.0),
                 vec_weight=getattr(config.params, "vec_loss_weight", 1.0),
-                warmup_epochs=getattr(config.params, "geo_warmup_epochs", 5),
+                consistency_weight=getattr(config.params, "consistency_weight", 1.0),
+                warmup_epochs=getattr(config.params, "geo_warmup_epochs", 0),
+                cons_warmup_epochs=getattr(config.params, "cons_warmup_epochs", 0),
+                eikonal_weight=getattr(config.params, "eikonal_weight", 0.0),
             )
+
+        # Optimize with torch.compile (PyTorch 2.0+)
+        # "reduce-overhead" is beneficial for small batches and loops (like Star)
+        if hasattr(torch, "compile") and sys.platform != "win32":
+            # Windows support for torch.compile is experimental, skipping on Windows to avoid Triton errors
+            try:
+                self.planner = torch.compile(self.planner, mode="reduce-overhead")
+            except Exception:
+                self.planner = torch.compile(self.planner) # Fallback to default
+
 
     def forward(self, map_designs, start_maps, goal_maps):
         return self.planner(map_designs, start_maps, goal_maps)
+
+    def transfer_batch_to_device(self, batch, device, dataloader_idx):
+        """Transfer batch to device with non-blocking for async CPU-GPU transfer."""
+        if isinstance(batch, torch.Tensor):
+            return batch.to(device, non_blocking=True)
+        elif isinstance(batch, (list, tuple)):
+            return type(batch)(
+                self.transfer_batch_to_device(item, device, dataloader_idx)
+                for item in batch
+            )
+        elif isinstance(batch, dict):
+            return {
+                key: self.transfer_batch_to_device(val, device, dataloader_idx)
+                for key, val in batch.items()
+            }
+        return batch
 
     def configure_optimizers(self):
         if not self.direct_geo_supervision:
@@ -87,6 +123,7 @@ class PlannerModule(pl.LightningModule):
                 "lr_scheduler": {
                     "scheduler": scheduler,
                     "interval": "step",
+                    "frequency": 1,
                 }
             }
         except (RuntimeError, MisconfigurationException) as e:
@@ -133,9 +170,13 @@ class PlannerModule(pl.LightningModule):
 
             # Geo supervision uses auxiliary geodesic predictions when available.
             pred_dist = pred_vx = pred_vy = None
+            
+            # Attributes might be hidden under _orig_mod if compiled
+            planner_module = self.planner._orig_mod if hasattr(self.planner, "_orig_mod") else self.planner
+            
             geo_pred = (
-                self.planner.get_geo_predictions()
-                if hasattr(self.planner, "get_geo_predictions")
+                planner_module.get_geo_predictions()
+                if hasattr(planner_module, "get_geo_predictions")
                 else None
             )
             if isinstance(geo_pred, dict):
@@ -144,13 +185,13 @@ class PlannerModule(pl.LightningModule):
                 pred_vy = geo_pred.get("vy")
 
             # Backward-compatible fallback (older "direct" encoders used cost map as distance)
-            if pred_dist is None and hasattr(self.planner, "get_cost_map"):
-                pred_dist = self.planner.get_cost_map()
+            if pred_dist is None and hasattr(planner_module, "get_cost_map"):
+                pred_dist = planner_module.get_cost_map()
 
             if (pred_vx is None or pred_vy is None) and hasattr(
-                self.planner, "get_vector_field"
+                planner_module, "get_vector_field"
             ):
-                vector_field = self.planner.get_vector_field()
+                vector_field = planner_module.get_vector_field()
                 if vector_field is not None and vector_field[0] is not None:
                     pred_vx, pred_vy = vector_field
 
@@ -219,9 +260,13 @@ class PlannerModule(pl.LightningModule):
             path_loss = path_loss * path_weight
 
             pred_dist = pred_vx = pred_vy = None
+            
+            # Attributes might be hidden under _orig_mod if compiled
+            planner_module = self.planner._orig_mod if hasattr(self.planner, "_orig_mod") else self.planner
+
             geo_pred = (
-                self.planner.get_geo_predictions()
-                if hasattr(self.planner, "get_geo_predictions")
+                planner_module.get_geo_predictions()
+                if hasattr(planner_module, "get_geo_predictions")
                 else None
             )
             if isinstance(geo_pred, dict):
@@ -229,13 +274,13 @@ class PlannerModule(pl.LightningModule):
                 pred_vx = geo_pred.get("vx")
                 pred_vy = geo_pred.get("vy")
 
-            if pred_dist is None and hasattr(self.planner, "get_cost_map"):
-                pred_dist = self.planner.get_cost_map()
+            if pred_dist is None and hasattr(planner_module, "get_cost_map"):
+                pred_dist = planner_module.get_cost_map()
 
             if (pred_vx is None or pred_vy is None) and hasattr(
-                self.planner, "get_vector_field"
+                planner_module, "get_vector_field"
             ):
-                vector_field = self.planner.get_vector_field()
+                vector_field = planner_module.get_vector_field()
                 if vector_field is not None and vector_field[0] is not None:
                     pred_vx, pred_vy = vector_field
 
@@ -301,8 +346,8 @@ def set_global_seeds(seed: int) -> None:
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = False # Faster, less reproducible
+        torch.backends.cudnn.benchmark = True # Optimized for fixed input size
 
     np.random.seed(seed)
     random.seed(seed)

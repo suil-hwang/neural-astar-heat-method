@@ -23,6 +23,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 # Suppress warnings
 warnings.filterwarnings("ignore", message="torch.meshgrid")
 warnings.filterwarnings("ignore", message=".*num_workers.*")
+warnings.filterwarnings("ignore", message=".*lr_scheduler.step.*")
+warnings.filterwarnings("ignore", message=".*Precision.*mixed.*")
 
 # Set float32 matmul precision for Tensor Cores
 torch.set_float32_matmul_precision('high')
@@ -116,11 +118,14 @@ def main(config):
     enable_progress_bar = sys.stdout.isatty()
     trainer = pl.Trainer(
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        precision="bf16-mixed",  # BF16 is optimized for RTX 30/40 series and H100
+        benchmark=True,  # Enable cuDNN autotuner for consistent input sizes
         log_every_n_steps=1,
         default_root_dir=logdir,
         max_epochs=config.params.num_epochs,
         callbacks=[checkpoint_callback],
         enable_progress_bar=enable_progress_bar,
+        enable_model_summary=True,  # Use default model summary
     )
     trainer.fit(module, train_loader, val_loader)
 
@@ -132,10 +137,10 @@ if __name__ == "__main__":
 # Usage Examples
 # ============================================================================
 
-# 1. Standard Neural A* 
+# 1. Neural A* 
 # python scripts/train.py mode=neural_astar encoder.arch=Unet 
 
-# 2. Ours (Geo-supervised with MultiHeadGeoUnet)
+# 2. Ours 
 # python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet
 
 # Tensorboard

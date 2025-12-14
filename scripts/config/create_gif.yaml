@@ -2,7 +2,7 @@ seed: 1234
 dataset: "planning-datasets/data/mpd/mazes_032_moore_c8"
 modeldir: "model"
 resultdir: "gif"
-planner: "na"   # either na or va
+planner: "na" # either na or va
 
 encoder:
   input: "m+"
@@ -11,7 +11,6 @@ encoder:
 
 problem_id: 1
 use_guidance_inference: false
-
 
 hydra:
   job:
