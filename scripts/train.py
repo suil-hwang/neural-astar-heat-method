@@ -99,13 +99,14 @@ def main(config):
         monitor="metrics/h_mean", save_weights_only=True, mode="max"
     )
     
+    # Extract map size from dataset for Eikonal loss scaling
+    map_size = train_loader.dataset.map_designs.shape[-1]
+    
     print("=" * 60)
     print(f"Training mode: {mode}")
     print(f"Encoder: {encoder_arch} (input channels: {len(encoder_input)})")
     print(f"Encoder depth: {encoder_depth}")
-    
-    print(f"Direct Geo Supervision (ours): {geo_supervision}")
-    
+    print(f"Map size: {map_size}x{map_size}")
     print("=" * 60)
 
     module = PlannerModule(
@@ -113,6 +114,7 @@ def main(config):
         config,
         use_guidance=False,
         direct_geo_supervision=geo_supervision,
+        map_size=map_size,
     )
     logdir = f"{config.logdir}/{mode}/{os.path.basename(config.dataset)}"
     enable_progress_bar = sys.stdout.isatty()
@@ -139,6 +141,11 @@ if __name__ == "__main__":
 
 # 1. Neural A* 
 # python scripts/train.py mode=neural_astar encoder.arch=Unet 
+
+# Tensorboard
+# tensorboard --logdir model/neural_astar/mazes_032_moore_c8_ours
+# tensorboard --logdir model/neural_astar/all_064_moore_c16_ours
+# tensorboard --logdir model/neural_astar/mixed_064_moore_c16_ours
 
 # 2. Ours 
 # python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet

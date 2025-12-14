@@ -56,7 +56,9 @@ def create_dataloader(
     )
     return data.DataLoader(
         dataset, batch_size=batch_size, shuffle=shuffle, 
-        num_workers=num_workers, persistent_workers=(num_workers > 0)
+        num_workers=num_workers, persistent_workers=(num_workers > 0),
+        pin_memory=True,
+        prefetch_factor=4 if num_workers > 0 else None
     )
 
 

@@ -49,6 +49,7 @@ class PlannerModule(pl.LightningModule):
         config,
         use_guidance: bool = False,
         direct_geo_supervision: bool = False,
+        map_size: int = 64,
     ):
         super().__init__()
         self.planner = planner
@@ -66,6 +67,7 @@ class PlannerModule(pl.LightningModule):
                 warmup_epochs=getattr(config.params, "geo_warmup_epochs", 0),
                 cons_warmup_epochs=getattr(config.params, "cons_warmup_epochs", 0),
                 eikonal_weight=getattr(config.params, "eikonal_weight", 0.0),
+                map_size=map_size,
             )
 
         # Optimize with torch.compile (PyTorch 2.0+)
