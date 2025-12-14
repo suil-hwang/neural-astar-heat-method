@@ -209,7 +209,7 @@ results/comparison/
 
 > **Note:** All experiments were trained for **50 epochs**.
 
-### 32×32 Maze Dataset (100 Test Samples)
+### 32×32 Maze Dataset (mazes_032_moore_c8, 100 Test Samples)
 
 | Model       | Opt (%) ↑ | Exp (%) ↑ | Hmean ↑   | Time (ms) ↓ |
 | ----------- | --------- | --------- | --------- | ----------- |
@@ -217,23 +217,34 @@ results/comparison/
 | Neural A\*  | 55.00     | 26.46     | 35.73     | 12.49       |
 | **Ours**    | **78.00** | **35.46** | **48.75** | **8.88**    |
 
-**Key Observations:**
+### 64×64 Mixed Maze Dataset (mixed_064_moore_c16, 400 Test Samples)
 
-- **+23%p Optimality Improvement**: Geodesic supervision enables the network to learn dead-end avoidance and bypass structures explicitly
-- **+9%p Exploration Efficiency**: Vector field guidance reduces unnecessary node exploration by directing search toward the goal
-- **29% Faster Inference**: More efficient cost maps lead to fewer A\* iterations
+| Model       | Opt (%) ↑ | Exp (%) ↑ | Hmean ↑   | Time (ms) ↓ |
+| ----------- | --------- | --------- | --------- | ----------- |
+| Vanilla A\* | 100.00    | 0.00      | 0.00      | 37.99       |
+| Neural A\*  | 65.25     | 27.83     | 39.02     | 23.24       |
+| **Ours**    | **77.00** | **27.57** | **40.60** | **29.22**   |
+
+### 64×64 All Maze Dataset (all_064_moore_c16, 400 Test Samples)
+
+| Model       | Opt (%) ↑ | Exp (%) ↑ | Hmean ↑   | Time (ms) ↓ |
+| ----------- | --------- | --------- | --------- | ----------- |
+| Vanilla A\* | 100.00    | 0.00      | 0.00      | 55.06       |
+| Neural A\*  | 34.50     | 43.91     | 38.64     | 36.48       |
+| **Ours**    | **54.75** | **38.77** | **45.40** | **43.26**   |
 
 ---
 
 ## References
 
-1. Yonetani, R., Taniai, T., et al. "Path Planning using Neural A*Search",*ICML\*, 2021.
+1. Yonetani, R., Taniai, T., et al. "Path Planning using Neural A*Search", _ICML_, 2021.
    [[paper]](https://arxiv.org/abs/2009.07476) [[project]](https://omron-sinicx.github.io/neural-astar/)
 
-2. Crane, K., Weischedel, C., Wardetzky, M. "The Heat Method for Distance Computation", _Communications of the ACM_, 2017.
-   [[paper]](https://dl.acm.org/doi/10.1145/3131280)
+2. Crane, K., Weischedel, C., Wardetzky, M. "The Heat Method for Distance Computation", _ACM ToG_, 2017.
+   [[paper]](https://dl.acm.org/doi/10.1145/3131280) [[project]](https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/)
 
 3. Kendall, A., Gal, Y., Cipolla, R. "Multi-Task Learning Using Uncertainty to Weigh Losses", _CVPR_, 2018.
    [[paper]](https://arxiv.org/abs/1705.07115)
 
 4. Jiang, G.-S., Peng, D. "Weighted ENO Schemes for Hamilton-Jacobi Equations", _SIAM J. Sci. Comput._, 2000.
+   [[paper]](https://doi.org/10.1137/S106482759732455X)
