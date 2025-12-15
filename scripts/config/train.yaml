@@ -21,12 +21,11 @@ params:
   num_workers: 4
 
   # Loss Weights
-  path_loss_weight: 1
+  path_loss_weight: 1.0
   geo_loss_weight: 0.1
   dist_loss_weight: 1.0
   vec_loss_weight: 1.0
   consistency_weight: 0.5
-  eikonal_weight: 0.01
 
   use_uncertainty_weighting: false
   use_weno_gradient: true

@@ -19,7 +19,7 @@ A path planning framework that enhances Neural A\* with **Heat Method-based Geod
 
 - **Heat Method**: Computes Geodesic Distance and goal-directed Vector Field via heat diffusion
 - **Multi-Head Encoder**: Separates Cost prediction (main) from Distance/Vector prediction (auxiliary)
-- **Geometric Losses**: Distance Loss, Vector Loss, Gradient-Vector Consistency, Eikonal Regularization
+- **Geometric Losses**: Distance Loss, Vector Loss, Gradient-Vector Consistency
 
 ---
 
@@ -119,6 +119,6 @@ python scripts/create_comparison_gif.py \
 
 ## References
 
-1. Yonetani et al., "Path Planning using Neural A*Search", _ICML_, 2021. [[paper]](https://arxiv.org/abs/2009.07476)
+1. Yonetani et al., "Path Planning using Neural A\*Search", _ICML_, 2021. [[paper]](https://arxiv.org/abs/2009.07476)
 2. Crane et al., "The Heat Method for Distance Computation", _ACM ToG_, 2013. [[paper]](https://dl.acm.org/doi/10.1145/3131280)
 3. Kendall et al., "Multi-Task Learning Using Uncertainty to Weigh Losses", _CVPR_, 2018. [[paper]](https://arxiv.org/abs/1705.07115)

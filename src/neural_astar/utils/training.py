@@ -49,7 +49,6 @@ class PlannerModule(pl.LightningModule):
         config,
         use_guidance: bool = False,
         direct_geo_supervision: bool = False,
-        map_size: int = 64,
     ):
         super().__init__()
         self.planner = planner
@@ -64,9 +63,7 @@ class PlannerModule(pl.LightningModule):
                 dist_weight=getattr(config.params, "dist_loss_weight", 1.0),
                 vec_weight=getattr(config.params, "vec_loss_weight", 1.0),
                 consistency_weight=getattr(config.params, "consistency_weight", 0.5),
-                eikonal_weight=getattr(config.params, "eikonal_weight", 0.01),
                 use_uncertainty_weighting=getattr(config.params, "use_uncertainty_weighting", False),
-                use_weno_gradient=getattr(config.params, "use_weno_gradient", True),
             )
 
         # Optimize with torch.compile (PyTorch 2.0+)

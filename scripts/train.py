@@ -99,7 +99,7 @@ def main(config):
         monitor="metrics/h_mean", save_weights_only=True, mode="max"
     )
     
-    # Extract map size from dataset for Eikonal loss scaling
+    # Extract map size from dataset
     map_size = train_loader.dataset.map_designs.shape[-1]
     
     print("=" * 60)
@@ -114,7 +114,6 @@ def main(config):
         config,
         use_guidance=False,
         direct_geo_supervision=geo_supervision,
-        map_size=map_size,
     )
     logdir = f"{config.logdir}/{mode}/{os.path.basename(config.dataset)}"
     enable_progress_bar = sys.stdout.isatty()
