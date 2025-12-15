@@ -207,15 +207,15 @@ results/comparison/
 
 ## Experimental Results
 
-> **Note:** All experiments were trained for **50 epochs**.
+> **Note:** All experiments were trained for **100 epochs**.
 
 ### 32×32 Maze Dataset (mazes_032_moore_c8, 100 Test Samples)
 
 | Model       | Opt (%) ↑ | Exp (%) ↑ | Hmean ↑   | Time (ms) ↓ |
 | ----------- | --------- | --------- | --------- | ----------- |
-| Vanilla A\* | 100.00    | 0.00      | 0.00      | 13.35       |
-| Neural A\*  | 55.00     | 26.46     | 35.73     | 12.49       |
-| **Ours**    | **78.00** | **35.46** | **48.75** | **8.88**    |
+| Vanilla A\* | 100.00    | 0.00      | 0.00      | 12.98       |
+| Neural A\*  | 74.00     | 26.05     | 38.54     | 13.65       |
+| **Ours**    | **88.00** | **43.08** | **57.84** | **9.38**    |
 
 ### 64×64 Mixed Maze Dataset (mixed_064_moore_c16, 400 Test Samples)
 
@@ -237,14 +237,14 @@ results/comparison/
 
 ## References
 
-1. Yonetani, R., Taniai, T., et al. "Path Planning using Neural A*Search", _ICML_, 2021.
+1. Yonetani, R., Taniai, T., et al. "Path Planning using Neural A* Search", _ICML_, 2021.  
    [[paper]](https://arxiv.org/abs/2009.07476) [[project]](https://omron-sinicx.github.io/neural-astar/)
 
-2. Crane, K., Weischedel, C., Wardetzky, M. "The Heat Method for Distance Computation", _ACM ToG_, 2017.
+2. Crane, K., Weischedel, C., et al. "The Heat Method for Distance Computation", _Communications of the ACM_, 2017.  
    [[paper]](https://dl.acm.org/doi/10.1145/3131280) [[project]](https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/)
 
-3. Kendall, A., Gal, Y., Cipolla, R. "Multi-Task Learning Using Uncertainty to Weigh Losses", _CVPR_, 2018.
+3. Kendall, A., Gal, Y., et al. "Multi-Task Learning Using Uncertainty to Weigh Losses for Scene Geometry and Semantics", _CVPR_, 2018.  
    [[paper]](https://arxiv.org/abs/1705.07115)
 
-4. Jiang, G.-S., Peng, D. "Weighted ENO Schemes for Hamilton-Jacobi Equations", _SIAM J. Sci. Comput._, 2000.
+4. Jiang, G.-S., Peng, D. "Weighted ENO Schemes for Hamilton–Jacobi Equations", _SIAM J. Sci. Comput._, 2000.  
    [[paper]](https://doi.org/10.1137/S106482759732455X)

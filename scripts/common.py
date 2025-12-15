@@ -72,7 +72,10 @@ def _detect_encoder_depth(state_dict: dict[str, torch.Tensor]) -> int:
     """Detect encoder depth from decoder block count (U-Net) or conv stage count (CNN)."""
     block_indices = []
     for key in state_dict.keys():
-        match = re.search(r"encoder\.unet\.decoder\.blocks\.(\d+)", key)
+        # Match both patterns:
+        # - Our model: encoder.unet.decoder.blocks.N
+        # - Neural A* original: encoder.model.decoder.blocks.N
+        match = re.search(r"decoder\.blocks\.(\d+)", key)
         if match:
             try:
                 block_indices.append(int(match.group(1)))

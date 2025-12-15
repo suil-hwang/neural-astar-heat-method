@@ -63,11 +63,10 @@ class PlannerModule(pl.LightningModule):
             self.geo_loss_fn = CombinedGeodesicLoss(
                 dist_weight=getattr(config.params, "dist_loss_weight", 1.0),
                 vec_weight=getattr(config.params, "vec_loss_weight", 1.0),
-                consistency_weight=getattr(config.params, "consistency_weight", 1.0),
-                warmup_epochs=getattr(config.params, "geo_warmup_epochs", 0),
-                cons_warmup_epochs=getattr(config.params, "cons_warmup_epochs", 0),
-                eikonal_weight=getattr(config.params, "eikonal_weight", 0.0),
-                map_size=map_size,
+                consistency_weight=getattr(config.params, "consistency_weight", 0.5),
+                eikonal_weight=getattr(config.params, "eikonal_weight", 0.01),
+                use_uncertainty_weighting=getattr(config.params, "use_uncertainty_weighting", False),
+                use_weno_gradient=getattr(config.params, "use_weno_gradient", True),
             )
 
         # Optimize with torch.compile (PyTorch 2.0+)
@@ -106,8 +105,13 @@ class PlannerModule(pl.LightningModule):
                 self.config.params.lr,
             )
 
+        # Include geo_loss_fn parameters (uncertainty log_vars) if available
+        params_to_optimize = list(self.planner.parameters())
+        if hasattr(self.geo_loss_fn, 'parameters'):
+            params_to_optimize += list(self.geo_loss_fn.parameters())
+        
         optimizer = torch.optim.AdamW(
-            self.planner.parameters(), 
+            params_to_optimize,
             lr=self.config.params.lr,
             weight_decay=0.01
         )

@@ -1,8 +1,8 @@
 # scripts/config/train.yaml
 seed: 1234
 #dataset: "data/maze_preprocessed/mazes_032_moore_c8_ours"
-#dataset: "data/maze_preprocessed/mixed_064_moore_c16_ours"
-dataset: "data/maze_preprocessed/all_064_moore_c16_ours"
+dataset: "data/maze_preprocessed/mixed_064_moore_c16_ours"
+#dataset: "data/maze_preprocessed/all_064_moore_c16_ours"
 logdir: "model"
 Tmax: 0.25
 mode: "ours" # Options: neural_astar, ours
@@ -11,18 +11,17 @@ encoder:
   input: "msg"
   arch: "MultiHeadGeoUnet"
   backbone: "vgg16_bn"
-  depth: 2 # 32x32
-  #depth: 3 # 64x64
+  #depth: 2 # 32x32
+  depth: 3 # 64x64
 
 params:
   batch_size: 32
-  num_epochs: 50
+  num_epochs: 100
   lr: 1e-4
   num_workers: 4
 
   # Loss Weights
-  path_loss_weight: 1 # mode=neural_astar=1
-  #path_loss_weight: 100 # mode=ours=100
+  path_loss_weight: 1
   geo_loss_weight: 0.1
   dist_loss_weight: 1.0
   vec_loss_weight: 1.0
