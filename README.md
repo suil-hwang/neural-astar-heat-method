@@ -119,6 +119,6 @@ python scripts/create_comparison_gif.py \
 
 ## References
 
-1. Yonetani et al., "Path Planning using Neural A*Search",*ICML\*, 2021. [[paper]](https://arxiv.org/abs/2009.07476)
+1. Yonetani et al., "Path Planning using Neural A*Search", _ICML_, 2021. [[paper]](https://arxiv.org/abs/2009.07476)
 2. Crane et al., "The Heat Method for Distance Computation", _ACM ToG_, 2013. [[paper]](https://dl.acm.org/doi/10.1145/3131280)
 3. Kendall et al., "Multi-Task Learning Using Uncertainty to Weigh Losses", _CVPR_, 2018. [[paper]](https://arxiv.org/abs/1705.07115)
