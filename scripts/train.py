@@ -133,23 +133,3 @@ def main(config):
 
 if __name__ == "__main__":
     main()
-
-# ============================================================================
-# Usage Examples
-# ============================================================================
-
-# 1. Neural A* 
-# python scripts/train.py mode=neural_astar encoder.arch=Unet params.path_loss_weight=1.0
-
-# Tensorboard
-# tensorboard --logdir model/neural_astar/mazes_032_moore_c8_ours
-# tensorboard --logdir model/neural_astar/all_064_moore_c16_ours
-# tensorboard --logdir model/neural_astar/mixed_064_moore_c16_ours
-
-# 2. Ours 
-# python scripts/train.py mode=ours encoder.arch=MultiHeadGeoUnet params.path_loss_weight=100.0 params.use_uncertainty_weighting=true
-
-# Tensorboard
-# tensorboard --logdir model/ours/mazes_032_moore_c8_ours
-# tensorboard --logdir model/ours/all_064_moore_c16_ours
-# tensorboard --logdir model/ours/mixed_064_moore_c16_ours

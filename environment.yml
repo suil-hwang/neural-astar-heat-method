@@ -8,34 +8,25 @@ channels:
 dependencies:
   - python=3.11.9
   - pip=24.3.1
-
-  - pytorch==2.5.1 # https://docs.pytorch.org/docs/2.5/index.html
+  - pytorch==2.5.1
   - torchvision==0.20.1
   - torchaudio=2.5.1
   - pytorch-cuda=11.8
-
-  - numpy=2.3.0 # https://numpy.org/doc/stable/reference/index.html#reference
-  - scipy=1.16.2 # https://docs.scipy.org/doc/scipy-1.16.2/reference/index.html
-
-  - pytorch-lightning=2.5.5 # https://lightning.ai/docs/pytorch/stable/
+  - numpy=2.3.0
+  - scipy=1.16.2
+  - pytorch-lightning=2.5.5
   - tensorboard
   - tensorboardx
-
   - matplotlib
   - tqdm
   - plyfile
   - jupyterlab
-
-  - hydra-core # https://hydra.cc/docs/intro/
+  - hydra-core
   - pyyaml
 
   - pip:
       - segmentation-models-pytorch
       - pqdict
-      - moviepy # https://zulko.github.io/moviepy/reference/index.html
-      - potpourri3d # For heat method geodesic computations
+      - moviepy
+      - potpourri3d
       - trimesh
-# conda env create -f environment.yml
-# conda activate neural-astar-heat-method
-# pip install -e .
-# conda env remove -n neural-astar-heat-method

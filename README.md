@@ -1,9 +1,9 @@
-# Neural A\* with Heat Method: Physics-Informed Geometric Guidance for Path Planning
+# Neural A\* with Heat Method: Geometric Guidance for Path Planning
 
 > **AIC6051 Prediction and Planning in Autonomous Driving**  
 > 2025 Fall, Hanyang University
 
-A path planning framework that enhances Neural A\* with **Heat Method-based Geodesic Supervision** and **Physics-Informed Geometric Losses**.
+A path planning framework that enhances Neural A\* with **Heat Method-based Geodesic Supervision** and **Geometric Losses**.
 
 ---
 

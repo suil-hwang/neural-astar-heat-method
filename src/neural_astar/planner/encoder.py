@@ -184,9 +184,7 @@ class MultiHeadGeoUnet(nn.Module):
         else:
             decoder_output = self.unet.decoder(encoder_feats)
 
-        # ------------------------------------------------------------
         # Auxiliary predictions (cached for geo loss)
-        # ------------------------------------------------------------
         dist_logits = self.dist_head(decoder_output)
         if dist_logits.shape[-2:] != input_spatial:
             dist_logits = F.interpolate(
@@ -209,9 +207,7 @@ class MultiHeadGeoUnet(nn.Module):
         if pred_vx is not None and pred_vy is not None:
             self._last_geo_predictions.update({"vx": pred_vx, "vy": pred_vy})
 
-        # ------------------------------------------------------------
         # Main prediction: cost map for A* search
-        # ------------------------------------------------------------
         cost_logits = self.cost_head(decoder_output)
         if cost_logits.shape[-2:] != input_spatial:
             cost_logits = F.interpolate(

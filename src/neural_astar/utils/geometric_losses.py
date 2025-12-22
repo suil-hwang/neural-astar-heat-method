@@ -95,10 +95,6 @@ class SobelGradient(nn.Module):
         return F.conv2d(padded, self.sobel_x), F.conv2d(padded, self.sobel_y)
 
 
-
-
-
-
 # Loss Components
 class LogDistanceLoss(nn.Module):
     """Log-space L1 loss for distance regression."""
